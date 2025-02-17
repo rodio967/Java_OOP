@@ -1,0 +1,12 @@
+.idea/
+*.iml
+*.class
+out/
+/build/
+/target/
+.gradle/
+target/
+build/
+*.log
+*.tmp
+
