@@ -1,0 +1,5 @@
+PUSH 12
+DEFINE a 5
+PUSH a
++
+PRINT
