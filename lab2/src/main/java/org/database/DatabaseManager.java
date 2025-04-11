@@ -1,10 +1,14 @@
 package org.database;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.TypeAdapter;
+import com.google.gson.*;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
+
+
+import java.lang.reflect.Type;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 
 
 import java.io.FileWriter;
@@ -18,25 +22,27 @@ import java.util.Set;
 
 public class DatabaseManager {
     private final String DB_PATH = "my-database/";
-    //static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     private final Map<String, Table> tables = new HashMap<>();
 
     public String getDB_PATH() {return DB_PATH;}
 
 
-    Gson customGson = new GsonBuilder()
-            .registerTypeAdapter(Integer.class, new TypeAdapter<Integer>() {
+    private final Gson customGson = new GsonBuilder()
+            .registerTypeAdapter(ZonedDateTime.class, new JsonSerializer<ZonedDateTime>() {
                 @Override
-                public void write(JsonWriter out, Integer value) throws IOException {
-                    out.value(value);
+                public JsonElement serialize(ZonedDateTime src, Type typeOfSrc, JsonSerializationContext context) {
+                    return new JsonPrimitive(src.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
                 }
-
+            })
+            .registerTypeAdapter(ZonedDateTime.class, new JsonDeserializer<ZonedDateTime>() {
                 @Override
-                public Integer read(JsonReader in) throws IOException {
-                    return (int) in.nextDouble();
+                public ZonedDateTime deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context)
+                        throws JsonParseException {
+                    return ZonedDateTime.parse(json.getAsString(), DateTimeFormatter.ISO_OFFSET_DATE_TIME);
                 }
             })
             .create();
+
 
 
     public void saveTable(String tableName, Table table) {
@@ -60,18 +66,7 @@ public class DatabaseManager {
             String json = new String(Files.readAllBytes(Paths.get(path)));
             Table table = customGson.fromJson(json, Table.class);
 
-
-            for (Map<String, Object> row : table.getRows()) {
-                for (Map.Entry<String, Object> entry : row.entrySet()) {
-                    if (entry.getValue() instanceof Double) {
-                        double value = (Double) entry.getValue();
-                        if (value == (int) value) {
-                            entry.setValue((int) value);
-                        }
-                    }
-                }
-            }
-
+            table.normalizeRowTypes();
 
             return table;
 

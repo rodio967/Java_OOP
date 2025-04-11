@@ -2,6 +2,9 @@ package org.database;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.regex.*;
 
@@ -98,7 +101,7 @@ class SQLParser {
                 Map<String, Object> conditions = parseConditions(whereClause, table);
                 result = table.selectRows(conditions);
             } else {
-                result = table.getRows();
+                result = new ArrayList<>(table.getRows());
             }
 
 
@@ -216,26 +219,52 @@ class SQLParser {
             return value;
         }
 
-        switch (expectedType.toLowerCase()) {
-            case "int":
-                if (!value.matches("-?\\d+")) {
-                    throw new IllegalArgumentException("Ошибка: '" + value + "' не является целым числом.");
-                }
-                return Integer.parseInt(value);
-            case "boolean":
-                if (!value.equalsIgnoreCase("true") && !value.equalsIgnoreCase("false")) {
-                    throw new IllegalArgumentException("Ошибка: '" + value + "' не является значением true/false.");
-                }
-                return Boolean.parseBoolean(value);
-            case "string":
-                if (value.startsWith("\"") && value.endsWith("\"")) {
-                    return value.substring(1, value.length() - 1).trim();
-                }
-                throw new IllegalArgumentException("Ошибка: '" + value + "' не является строкой ");
-            default:
-                throw new IllegalArgumentException("Неизвестный тип данных: " + expectedType);
+
+        if (expectedType.startsWith("[]")) {
+            if (!value.startsWith("[") || !value.endsWith("]")) {
+                throw new IllegalArgumentException("Ошибка: значение \"" + value + "\" не является массивом ");
+            }
+            String type_ = getString(expectedType);
+
+            String subValue_ = value.substring(1, value.length() - 1);
+
+            String[] elems = subValue_.split("\\s+");
+
+            List<Object> array = new ArrayList<>();
+
+            for (String elem : elems) {
+                Object typedValue = checkAndParseValue(elem, type_);
+                array.add(typedValue);
+            }
+            return array;
         }
+
+        return checkAndParseValue(value, expectedType);
+
+
     }
+
+
+    private static String getString(String expectedType) {
+        String type_ = "";
+        String expectedType_ = expectedType.substring(2).trim();
+        if (expectedType_.equalsIgnoreCase("strings")) {
+            type_ = "string";
+        } else if (expectedType_.equalsIgnoreCase("ints")) {
+            type_ = "int";
+        } else if (expectedType_.equalsIgnoreCase("booleans")) {
+            type_ = "boolean";
+        } else if (expectedType_.equalsIgnoreCase("dates")) {
+            type_ = "date";
+        }
+
+        if (type_.isEmpty()) {
+            throw new IllegalArgumentException("Ошибка неверно указан тип после []");
+        }
+        return type_;
+    }
+
+
 
     private void insertRowIntoTable(Table table, String rowValues) throws Exception {
         String[] values = rowValues.split("\\s*,\\s*");
@@ -255,6 +284,37 @@ class SQLParser {
         }
         table.insertRow(row);
         System.out.println("Данные добавлены в таблицу " + table.getName());
+    }
+
+
+    private Object checkAndParseValue(String value, String type_) {
+        value = value.trim();
+        switch (type_.toLowerCase()) {
+            case "string":
+                if (value.startsWith("\"") && value.endsWith("\"")) {
+                    return value.substring(1, value.length() - 1).trim();
+                }
+                break;
+            case "int":
+                if (value.matches("-?\\d+")) {
+                    return Integer.parseInt(value);
+                }
+                break;
+            case "boolean":
+                if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false")) {
+                    return Boolean.parseBoolean(value);
+                }
+                break;
+            case "date":
+                value = value.trim().replaceAll("^\"|\"$", "");
+                try {
+                    return ZonedDateTime.parse(value, DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+                } catch (DateTimeParseException e) {
+                    throw new IllegalArgumentException("Неверный формат даты. Используй ISO, например: 2025-02-19T21:43:15+0000");
+                }
+        }
+
+        throw new IllegalArgumentException("Ошибка: значение \"" + value + "\" не соответствует типу " + type_);
     }
 
 }

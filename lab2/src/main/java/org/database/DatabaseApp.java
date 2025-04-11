@@ -199,7 +199,7 @@ public class DatabaseApp extends Application {
 
 
         ComboBox<String> columnTypeInput = new ComboBox<>();
-        columnTypeInput.getItems().addAll("INT", "STRING", "BOOLEAN");
+        columnTypeInput.getItems().addAll("INT", "STRING", "BOOLEAN", "DATE", "[]STRINGS", "[]INTS", "[]BOOLEANS");
         columnTypeInput.setValue("STRING");
 
 

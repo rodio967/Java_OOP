@@ -1,5 +1,8 @@
 package org.database;
 
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 
 
@@ -110,30 +113,6 @@ public class Table {
         }
     }
 
-    public void printTable() {
-        if (rows.isEmpty()) {
-            System.out.println("Таблица пуста.");
-            return;
-        }
-
-        System.out.println("Таблица: " + name);
-        System.out.println("────────────────────────────────────────────────────");
-
-
-        for (String colName : columns.keySet()) {
-            System.out.print(colName + "\t");
-        }
-        System.out.println("\n────────────────────────────────────────────────────");
-
-
-        for (Map<String, Object> row : rows) {
-            for (String colName : columns.keySet()) {
-                System.out.print(row.getOrDefault(colName, "NULL") + "\t");
-            }
-            System.out.println();
-        }
-        System.out.println("────────────────────────────────────────────────────");
-    }
 
 
     public List<Map<String, Object>> selectRows(Map<String, Object> conditions) {
@@ -182,6 +161,33 @@ public class Table {
             System.out.println();
         }
         System.out.println("────────────────────────────────────────────────────");
+
+    }
+
+    public void normalizeRowTypes() {
+        for (Map<String, Object> row : rows) {
+            for (Map.Entry<String, Object> entry : row.entrySet()) {
+
+                String columnName = entry.getKey();
+                String type = columns.get(columnName).getType().toLowerCase();
+
+                Object value = entry.getValue();
+
+                if (entry.getValue() instanceof Double) {
+                    double d = (Double) value;
+                    if (d == (int) d) {
+                        entry.setValue((int) d);
+                    }
+                } else if (value instanceof String && type.equals("date")) {
+                    try {
+                        ZonedDateTime zdt = ZonedDateTime.parse((String) value, DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+                        entry.setValue(zdt);
+                    } catch (DateTimeParseException e) {
+                        System.err.println("Ошибка преобразования даты в колонке " + columnName + ": " + e.getMessage());
+                    }
+                }
+            }
+        }
 
     }
 
