@@ -1,4 +1,4 @@
-package org.database;
+package org.model;
 
 
 public class Column {
@@ -18,8 +18,8 @@ public class Column {
 
     public String getType() {return type;}
 
-    public boolean getisUnique() {return isUnique;}
+    public boolean getIsUnique() {return isUnique;}
 
-    public boolean getisNotNull() {return isNotNull;}
+    public boolean getIsNotNull() {return isNotNull;}
 }
 

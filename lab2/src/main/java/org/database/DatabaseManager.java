@@ -1,14 +1,17 @@
 package org.database;
 
 import com.google.gson.*;
-import com.google.gson.stream.JsonReader;
-import com.google.gson.stream.JsonWriter;
+import org.app.LoggerManager;
+import org.model.Column;
+import org.model.Table;
+
+import java.util.logging.Logger;
 
 
 import java.lang.reflect.Type;
+import java.nio.file.Path;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 
 
 import java.io.FileWriter;
@@ -21,6 +24,8 @@ import java.util.Map;
 import java.util.Set;
 
 public class DatabaseManager {
+    private static final Logger logger = LoggerManager.getLogger(DatabaseManager.class);
+
     private final String DB_PATH = "my-database/";
     private final Map<String, Table> tables = new HashMap<>();
 
@@ -48,22 +53,42 @@ public class DatabaseManager {
     public void saveTable(String tableName, Table table) {
         try {
             Files.createDirectories(Paths.get(DB_PATH));
-            String json = customGson.toJson(table);
+
+            String tableJson = customGson.toJson(table);
+
             FileWriter writer = new FileWriter(DB_PATH + tableName + ".db");
-            writer.write(json);
+            writer.write(tableJson);
+
             writer.close();
         } catch (IOException e) {
-            System.err.println("Ошибка при сохранении таблицы " + tableName + ": " + e.getMessage());
+            logger.severe("Ошибка при сохранении таблицы " + tableName + ": " + e.getMessage());
         }
     }
+
+
+    public void ensure_DB_DirectoryExists() {
+        try {
+            Path dbPath = Paths.get(DB_PATH);
+            if (Files.notExists(dbPath)) {
+                Files.createDirectories(dbPath);
+                logger.info("Создана директория базы данных: " + DB_PATH);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Не удалось создать директорию базы данных: " + e.getMessage(), e);
+        }
+    }
+
 
     public Table loadTable(String tableName) {
         try {
             String path = DB_PATH + tableName + ".db";
-            if (!Files.exists(Paths.get(path))) {
+            Path tablePath = Paths.get(path);
+
+            if (!Files.exists(tablePath)) {
                 return null;
             }
-            String json = new String(Files.readAllBytes(Paths.get(path)));
+
+            String json = new String(Files.readAllBytes(tablePath));
             Table table = customGson.fromJson(json, Table.class);
 
             table.normalizeRowTypes();
@@ -71,14 +96,13 @@ public class DatabaseManager {
             return table;
 
         } catch (IOException e) {
-            System.err.println("Ошибка при загрузке таблицы " + tableName + ": " + e.getMessage());
+            logger.severe("Ошибка при загрузке таблицы " + tableName + ": " + e.getMessage());
             return null;
         }
     }
 
     public void loadAllTables() {
         try {
-            Files.createDirectories(Paths.get(DB_PATH));
             Files.list(Paths.get(DB_PATH))
                     .filter(path -> path.toString().endsWith(".db"))
                     .forEach(path -> {
@@ -86,28 +110,28 @@ public class DatabaseManager {
                         Table table = loadTable(tableName);
                         if (table != null) {
                             tables.put(tableName, table);
-                            System.out.println("Загружена таблица: " + tableName);
+                            logger.info("Загружена таблица: " + tableName);
                         }
                     });
         } catch (IOException e) {
-            System.err.println("Ошибка при загрузке базы данных: " + e.getMessage());
+            logger.severe("Ошибка при загрузке базы данных: " + e.getMessage());
         }
     }
 
 
-    void createTable(String name, List<Column> columns) throws Exception {
+    public void createTable(String name, List<Column> columns) throws Exception {
         if (tables.containsKey(name)) {
             throw new Exception("Table " + name + " уже существует ");
         }
 
         Table table = new Table(name);
         for (Column col : columns) {
-            table.addColumn(col.getName(), col.getType(), col.getisUnique(), col.getisNotNull());
+            table.addColumn(col.getName(), col.getType(), col.getIsUnique(), col.getIsNotNull());
         }
         tables.put(name, table);
     }
 
-    void dropTable(String name) {
+    public void dropTable(String name) {
         Table table = tables.get(name);
         if (table == null) {
             throw new IllegalArgumentException("Ошибка: таблица " + name + " не найдена.");
@@ -115,7 +139,7 @@ public class DatabaseManager {
         tables.remove(name);
     }
 
-    Table getTable(String name) {
+    public Table getTable(String name) {
         Table table = tables.get(name);
         if (table == null) {
             throw new IllegalArgumentException("Ошибка: таблица " + name + " не найдена.");
@@ -123,7 +147,7 @@ public class DatabaseManager {
         return table;
     }
 
-    Set<String> listTables() {
+    public Set<String> listTables() {
         return tables.keySet();
     }
 }

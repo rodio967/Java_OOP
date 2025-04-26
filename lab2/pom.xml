@@ -53,7 +53,7 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <mainClass>org.database.DatabaseApp</mainClass>
+                    <mainClass>org.app.DatabaseApp</mainClass>
                 </configuration>
             </plugin>
         </plugins>

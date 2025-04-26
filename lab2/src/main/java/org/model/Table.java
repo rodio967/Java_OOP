@@ -1,12 +1,18 @@
-package org.database;
+package org.model;
+
+
+
+import org.app.LoggerManager;
 
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
+import java.util.logging.Logger;
 
 
 public class Table {
+    private static final Logger logger = LoggerManager.getLogger(Table.class);
     private final String name;
     private final LinkedHashMap<String, Column> columns = new LinkedHashMap<>();
     private final List<Map<String, Object>> rows = new ArrayList<>();
@@ -25,14 +31,16 @@ public class Table {
         if (columns.containsKey(columnName)) {
             throw new IllegalArgumentException("Столбец уже существует: " + columnName);
         }
+
         columns.put(columnName, new Column(columnName, type, isUnique, isNotNull));
+
         for (Map<String, Object> row : rows) {
             row.put(columnName, null);
         }
     }
 
 
-    void addColumn(String name, String type, boolean isUnique, boolean isNotNull) {
+    public void addColumn(String name, String type, boolean isUnique, boolean isNotNull) {
         columns.put(name, new Column(name, type, isUnique, isNotNull));
     }
 
@@ -63,10 +71,10 @@ public class Table {
     }
 
 
-    void insertRow(Map<String, Object> row) throws Exception {
+    public void insertRow(Map<String, Object> row) throws Exception {
         for (Column column : columns.values()) {
 
-            if (column.getisNotNull()) {
+            if (column.getIsNotNull()) {
                 if (row.get(column.getName()) instanceof String) {
                     String value = (String) row.get(column.getName());
                     if (value.isEmpty()) {
@@ -76,7 +84,7 @@ public class Table {
             }
 
 
-            if (column.getisUnique()) {
+            if (column.getIsUnique()) {
                 for (Map<String, Object> existingRow : rows) {
                     if (existingRow.get(column.getName()) != null && row.get(column.getName()) != null) {
                         if (existingRow.get(column.getName()).equals(row.get(column.getName()))) {
@@ -94,21 +102,9 @@ public class Table {
 
         while (iterator.hasNext()) {
             Map<String, Object> row = iterator.next();
-            boolean match = true;
-
-            for (Map.Entry<String, Object> condition : conditions.entrySet()) {
-                String columnName = condition.getKey();
-                Object expectedValue = condition.getValue();
-
-                if (!row.containsKey(columnName) || !row.get(columnName).equals(expectedValue)) {
-                    match = false;
-                    break;
-                }
-            }
-
-            if (match) {
+            if (matchesConditions(row, conditions)) {
                 iterator.remove();
-                System.out.println("Удалена строка из таблицы " + this.name);
+                logger.info("Удалена строка из таблицы " + this.name);
             }
         }
     }
@@ -119,24 +115,25 @@ public class Table {
         List<Map<String, Object>> result = new ArrayList<>();
 
         for (Map<String, Object> row : rows) {
-            boolean match = true;
-
-            for (Map.Entry<String, Object> condition : conditions.entrySet()) {
-                String column = condition.getKey();
-                Object value = condition.getValue();
-
-                if (!row.containsKey(column) || !row.get(column).equals(value)) {
-                    match = false;
-                    break;
-                }
-            }
-            if (match) {
+            if (matchesConditions(row, conditions)) {
                 result.add(row);
             }
 
         }
 
         return result;
+    }
+
+    private boolean matchesConditions(Map<String, Object> row, Map<String, Object> conditions) {
+        for (Map.Entry<String, Object> condition : conditions.entrySet()) {
+            String column = condition.getKey();
+            Object value = condition.getValue();
+
+            if (!row.containsKey(column) || !row.get(column).equals(value)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public void printResults(List<Map<String, Object>> result, List<String> colNames) {
@@ -183,7 +180,7 @@ public class Table {
                         ZonedDateTime zdt = ZonedDateTime.parse((String) value, DateTimeFormatter.ISO_OFFSET_DATE_TIME);
                         entry.setValue(zdt);
                     } catch (DateTimeParseException e) {
-                        System.err.println("Ошибка преобразования даты в колонке " + columnName + ": " + e.getMessage());
+                        logger.severe("Ошибка преобразования даты в колонке " + columnName + ": " + e.getMessage());
                     }
                 }
             }

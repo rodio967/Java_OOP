@@ -1,4 +1,4 @@
-package org.database;
+package org.app;
 
 import javafx.application.Application;
 import javafx.collections.FXCollections;
@@ -8,6 +8,9 @@ import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
+import org.database.DatabaseManager;
+import org.model.Table;
+import org.parser.SQLParser;
 
 import java.io.InputStream;
 import java.util.List;
@@ -33,6 +36,8 @@ public class DatabaseApp extends Application {
         Image image = new Image(iconStream);
         primaryStage.getIcons().add(image);
 
+
+        dbManager.ensure_DB_DirectoryExists();
         dbManager.loadAllTables();
         BorderPane root = new BorderPane();
 
