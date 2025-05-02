@@ -16,6 +16,8 @@ public class Table {
     private final String name;
     private final LinkedHashMap<String, Column> columns = new LinkedHashMap<>();
     private final List<Map<String, Object>> rows = new ArrayList<>();
+    private final Map<String, Set<Object>> uniqueValues = new HashMap<>();
+    private final Map<String, Column> uniqueColumns = new HashMap<>();
 
     public Table(String name) {
         this.name = name;
@@ -28,11 +30,7 @@ public class Table {
     public List<Map<String, Object>> getRows() {return rows;}
 
     public void addNewColumn(String columnName, String type, boolean isUnique, boolean isNotNull) {
-        if (columns.containsKey(columnName)) {
-            throw new IllegalArgumentException("Столбец уже существует: " + columnName);
-        }
-
-        columns.put(columnName, new Column(columnName, type, isUnique, isNotNull));
+        addColumn(columnName, type, isUnique, isNotNull);
 
         for (Map<String, Object> row : rows) {
             row.put(columnName, null);
@@ -41,7 +39,17 @@ public class Table {
 
 
     public void addColumn(String name, String type, boolean isUnique, boolean isNotNull) {
-        columns.put(name, new Column(name, type, isUnique, isNotNull));
+        if (columns.containsKey(name)) {
+            throw new IllegalArgumentException("Столбец уже существует: " + name);
+        }
+
+        Column column = new Column(name, type, isUnique, isNotNull);
+        columns.put(name, column);
+
+        if (isUnique) {
+            uniqueColumns.put(name, column);
+            uniqueValues.put(name, new HashSet<>());
+        }
     }
 
 
@@ -52,6 +60,11 @@ public class Table {
     public void dropColumn(String columnName) {
         if (!columns.containsKey(columnName)) {
             throw new IllegalArgumentException("Столбец '" + columnName + "' не найден.");
+        }
+
+        if (uniqueColumns.containsKey(columnName)) {
+            uniqueColumns.remove(columnName);
+            uniqueValues.remove(columnName);
         }
 
         columns.remove(columnName);
@@ -73,10 +86,12 @@ public class Table {
 
     public void insertRow(Map<String, Object> row) throws Exception {
         for (Column column : columns.values()) {
+            String columnName = column.getName();
+            Object valueRow = row.get(columnName);
 
             if (column.getIsNotNull()) {
-                if (row.get(column.getName()) instanceof String) {
-                    String value = (String) row.get(column.getName());
+                if (valueRow instanceof String) {
+                    String value = (String) valueRow;
                     if (value.isEmpty()) {
                         throw new IllegalArgumentException("Ошибка: Поле '" + column.getName() + "' не может быть NULL.");
                     }
@@ -85,16 +100,20 @@ public class Table {
 
 
             if (column.getIsUnique()) {
-                for (Map<String, Object> existingRow : rows) {
-                    if (existingRow.get(column.getName()) != null && row.get(column.getName()) != null) {
-                        if (existingRow.get(column.getName()).equals(row.get(column.getName()))) {
-                            throw new Exception("Column " + column.getName() + " must be unique.");
-                        }
-                    }
+                Set<Object> existingValues = uniqueValues.get(columnName);
+
+                if (existingValues.contains(valueRow)) {
+                    throw new Exception("Ошибка: Столбец '" + columnName + "' должен быть уникальным.");
                 }
             }
         }
         rows.add(row);
+
+        for (Column column : uniqueColumns.values()) {
+            if (row.get(column.getName()) != "") {
+                uniqueValues.get(column.getName()).add(row.get(column.getName()));
+            }
+        }
     }
 
     public void deleteRows(Map<String, Object> conditions) {
@@ -103,6 +122,16 @@ public class Table {
         while (iterator.hasNext()) {
             Map<String, Object> row = iterator.next();
             if (matchesConditions(row, conditions)) {
+                for (Column column : uniqueColumns.values()) {
+                    String columnName = column.getName();
+                    Object value = row.get(columnName);
+
+                    if (value != "" && uniqueValues.containsKey(columnName)) {
+                        uniqueValues.get(columnName).remove(value);
+                    }
+                }
+
+
                 iterator.remove();
                 logger.info("Удалена строка из таблицы " + this.name);
             }
@@ -166,6 +195,7 @@ public class Table {
             for (Map.Entry<String, Object> entry : row.entrySet()) {
 
                 String columnName = entry.getKey();
+                Column column = columns.get(columnName);
                 String type = columns.get(columnName).getType().toLowerCase();
 
                 Object value = entry.getValue();
@@ -173,12 +203,26 @@ public class Table {
                 if (entry.getValue() instanceof Double) {
                     double d = (Double) value;
                     if (d == (int) d) {
+                        Object oldValue = entry.getValue();
+                        Object newValue = (int) d;
+
                         entry.setValue((int) d);
+
+
+                        if (column.getIsUnique()) {
+                            updateUniqueValue(columnName, oldValue, newValue);
+                        }
                     }
                 } else if (value instanceof String && type.equals("date")) {
                     try {
                         ZonedDateTime zdt = ZonedDateTime.parse((String) value, DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+                        Object oldValue = entry.getValue();
                         entry.setValue(zdt);
+
+                        if (column.getIsUnique()) {
+                            updateUniqueValue(columnName, oldValue, zdt);
+                        }
+
                     } catch (DateTimeParseException e) {
                         logger.severe("Ошибка преобразования даты в колонке " + columnName + ": " + e.getMessage());
                     }
@@ -186,6 +230,14 @@ public class Table {
             }
         }
 
+    }
+
+    private void updateUniqueValue(String columnName, Object oldValue, Object newValue) {
+        Set<Object> valuesSet = uniqueValues.get(columnName);
+        if (valuesSet != null) {
+            valuesSet.remove(oldValue);
+            valuesSet.add(newValue);
+        }
     }
 
 }

@@ -34,11 +34,12 @@ public class SQLParser {
         String commandKey = command.trim().split("\\s+")[0].toUpperCase();
         SQLCommand sqlCommand = SQLCommandFactory.getCommand(commandKey);
 
-        if (sqlCommand != null && sqlCommand.matches(command)) {
-            sqlCommand.execute(command, dbManager);
-        } else {
+
+        if (sqlCommand == null || !sqlCommand.matches(command)) {
             throw new IllegalArgumentException("Неизвестная или неподдерживаемая команда: " + command);
         }
+
+        sqlCommand.execute(command, dbManager);
 
     }
 
@@ -69,11 +70,9 @@ public class SQLParser {
         for (String colDef : colDefs) {
             colDef = colDef.trim();
 
-            if(colDef.isEmpty()) {
-                continue;
+            if (!colDef.isEmpty()) {
+                columns.add(parseColumn(colDef));
             }
-
-            columns.add(parseColumn(colDef));
         }
         return columns;
     }
