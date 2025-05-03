@@ -17,7 +17,6 @@ public class Table {
     private final LinkedHashMap<String, Column> columns = new LinkedHashMap<>();
     private final List<Map<String, Object>> rows = new ArrayList<>();
     private final Map<String, Set<Object>> uniqueValues = new HashMap<>();
-    private final Map<String, Column> uniqueColumns = new HashMap<>();
 
     public Table(String name) {
         this.name = name;
@@ -47,7 +46,6 @@ public class Table {
         columns.put(name, column);
 
         if (isUnique) {
-            uniqueColumns.put(name, column);
             uniqueValues.put(name, new HashSet<>());
         }
     }
@@ -62,10 +60,7 @@ public class Table {
             throw new IllegalArgumentException("Столбец '" + columnName + "' не найден.");
         }
 
-        if (uniqueColumns.containsKey(columnName)) {
-            uniqueColumns.remove(columnName);
-            uniqueValues.remove(columnName);
-        }
+        uniqueValues.remove(columnName);
 
         columns.remove(columnName);
         for (Map<String, Object> row : rows) {
@@ -109,11 +104,13 @@ public class Table {
         }
         rows.add(row);
 
-        for (Column column : uniqueColumns.values()) {
-            if (row.get(column.getName()) != "") {
-                uniqueValues.get(column.getName()).add(row.get(column.getName()));
+        for (String columnName : uniqueValues.keySet()) {
+            Object value = row.get(columnName);
+            if (!Objects.equals(value, "")) {
+                uniqueValues.get(columnName).add(value);
             }
         }
+
     }
 
     public void deleteRows(Map<String, Object> conditions) {
@@ -122,15 +119,12 @@ public class Table {
         while (iterator.hasNext()) {
             Map<String, Object> row = iterator.next();
             if (matchesConditions(row, conditions)) {
-                for (Column column : uniqueColumns.values()) {
-                    String columnName = column.getName();
+                for (String columnName : uniqueValues.keySet()) {
                     Object value = row.get(columnName);
-
-                    if (value != "" && uniqueValues.containsKey(columnName)) {
+                    if (!Objects.equals(value, "")) {
                         uniqueValues.get(columnName).remove(value);
                     }
                 }
-
 
                 iterator.remove();
                 logger.info("Удалена строка из таблицы " + this.name);
