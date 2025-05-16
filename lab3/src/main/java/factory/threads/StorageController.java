@@ -37,6 +37,7 @@ public class StorageController extends Thread {
 
     public void stopRunning() {
         running = false;
+        workers.shutdown();
         interrupt();
     }
 

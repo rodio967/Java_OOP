@@ -1,9 +1,7 @@
 package factory.gui;
 
 import factory.FactoryConfig;
-import factory.model.PartFactory;
-import factory.ThreadPool.FixedThreadPool;
-import factory.ThreadPool.ThreadPool;
+import factory.FactoryModel;
 import factory.model.*;
 import factory.model.parts.Accessory;
 import factory.model.parts.Body;
@@ -11,14 +9,10 @@ import factory.model.parts.Engine;
 import factory.storage.Storage;
 import factory.threads.Dealer;
 import factory.threads.StorageController;
-import factory.threads.Supplier;
 
 import javax.swing.*;
 import java.awt.*;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 
 public class FactoryGUI extends JFrame {
@@ -27,8 +21,8 @@ public class FactoryGUI extends JFrame {
     private final Storage<Accessory> accessoryStorage;
     private final Storage<Car> carStorage;
     private final List<Dealer> dealers;
-    private final ThreadPool workers;
     private final StorageController controller;
+    private final FactoryModel model;
 
     private JLabel bodyStorageLabel;
     private JLabel engineStorageLabel;
@@ -39,77 +33,19 @@ public class FactoryGUI extends JFrame {
     private JLabel accessoryProducedLabel;
     private JLabel carsProducedLabel;
 
-    public class SupplierSettings<T extends CarPart> {
-        public final Storage<T> storage;
-        public final List<Supplier<T>> suppliers;
-        public final PartFactory<T> factory;
-        public final int delay;
 
-        public SupplierSettings(Storage<T> storage, List<Supplier<T>> suppliers, PartFactory<T> factory, int delay) {
-            this.storage = storage;
-            this.suppliers = suppliers;
-            this.factory = factory;
-            this.delay = delay;
-        }
-    }
-
-    private final Map<Class<? extends CarPart>, SupplierSettings<?>> supplierSettingsMap = new HashMap<>();
-
-    private void initSupplierSettings(FactoryConfig config) {
-        addSupplierSetting(Body.class, config.bodySuppliers, config.initialBodyDelay, config.bodyStorageCapacity, Body::new);
-        addSupplierSetting(Engine.class, config.engineSuppliers, config.initialEngineDelay, config.engineStorageCapacity, Engine::new);
-        addSupplierSetting(Accessory.class, config.accessorySuppliers, config.initialAccessoryDelay, config.accessoryStorageCapacity, Accessory::new);
-    }
-
-    private <T extends CarPart> void addSupplierSetting(Class<T> clazz, int count, int delay, int capacity,
-            PartFactory<T> factory) {
-        Storage<T> storage = new Storage<>(capacity, clazz.getSimpleName());
-        List<Supplier<T>> suppliers = new ArrayList<>();
-
-        for (int i = 0; i < count; i++) {
-            Supplier<T> supplier = new Supplier<>(storage, factory, delay);
-            suppliers.add(supplier);
-            supplier.start();
-        }
-
-
-        supplierSettingsMap.put(clazz, new SupplierSettings<>(storage, suppliers, factory, delay));
-    }
-
-    @SuppressWarnings("unchecked")
-    private <T extends CarPart> Storage<T> getStorageFromSettings(Class<T> clazz) {
-        return (Storage<T>) supplierSettingsMap.get(clazz).storage;
-    }
-
-
-
-
-
-    public FactoryGUI(FactoryConfig config) {
+    public FactoryGUI(FactoryConfig config, FactoryModel model) {
         super("Car Factory Emulator");
 
-        initSupplierSettings(config);
+        this.model = model;
 
+        bodyStorage = model.bodyStorage;
+        engineStorage = model.engineStorage;
+        accessoryStorage = model.accessoryStorage;
+        carStorage = model.carStorage;
 
-        bodyStorage = getStorageFromSettings(Body.class);
-        engineStorage = getStorageFromSettings(Engine.class);
-        accessoryStorage = getStorageFromSettings(Accessory.class);
-
-        carStorage = new Storage<>(config.carStorageCapacity, "Car");
-
-        workers = new FixedThreadPool(config.workers);
-
-        dealers = new ArrayList<>();
-        for (int i = 0; i < config.dealers; i++) {
-            Dealer dealer = new Dealer(carStorage, config.initialDealerDelay);
-            dealers.add(dealer);
-            dealer.start();
-        }
-
-        controller = new StorageController(carStorage, config, bodyStorage,
-                engineStorage, accessoryStorage,
-                config.targetStockLevel);
-        controller.start();
+        dealers = model.dealers;
+        controller = model.controller;
 
 
         setupGUI(config);
@@ -186,7 +122,7 @@ public class FactoryGUI extends JFrame {
         controlPanel.setBorder(BorderFactory.createTitledBorder("Controls"));
 
 
-        supplierSettingsMap.forEach((clazz, setting) -> {
+        model.supplierSettingsMap.forEach((clazz, setting) -> {
             controlPanel.add(createDelaySlider(clazz.getSimpleName() + " Supplier Delay", 100, 5000, setting.delay,
                     delay -> setting.suppliers.forEach(s -> s.setDelay(delay))
             ));
@@ -222,10 +158,6 @@ public class FactoryGUI extends JFrame {
     }
 
     public void shutdown() {
-        supplierSettingsMap.values().forEach(setting -> setting.suppliers.forEach(Supplier::stopRunning));
-
-        dealers.forEach(Dealer::stopRunning);
-        controller.stopRunning();
-        workers.shutdown();
+        model.shutdown();
     }
 }

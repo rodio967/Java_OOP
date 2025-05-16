@@ -9,8 +9,10 @@ public class CarFactory {
     public static void main(String[] args) {
         try {
             FactoryConfig config = FactoryConfig.loadFromFile("factory.properties");
+            FactoryModel model = new FactoryModel(config);
+
             SwingUtilities.invokeLater(() -> {
-                FactoryGUI gui = new FactoryGUI(config);
+                FactoryGUI gui = new FactoryGUI(config, model);
                 gui.setVisible(true);
 
                 gui.addWindowListener(new java.awt.event.WindowAdapter() {
