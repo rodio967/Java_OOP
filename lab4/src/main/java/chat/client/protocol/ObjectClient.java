@@ -40,7 +40,7 @@ public class ObjectClient {
             client.updateUserList(event.getUsername(), event.isLogin());
 
         } else if (obj instanceof UserListMessage) {
-            client.updateUserList(((UserListMessage) obj).getUsers());
+            client.updateUserListObject(((UserListMessage) obj).getUsers());
 
         } else if (obj instanceof MessageHistoryMessage) {
             for (ChatMessage message : ((MessageHistoryMessage) obj).getHistory()) {

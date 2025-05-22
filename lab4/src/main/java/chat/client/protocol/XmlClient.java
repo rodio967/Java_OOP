@@ -82,7 +82,7 @@ public class XmlClient extends XmlProtocol {
             }
 
         } else if ("userlist".equals(eventName)) {
-            client.updateUserListFromXml(root);
+            client.updateUserListXml(root);
         }
     }
 
@@ -96,3 +96,4 @@ public class XmlClient extends XmlProtocol {
     }
 
 }
+

@@ -44,12 +44,11 @@ public class ObjectProtocolHandler {
 
     public void sendLoginMessage(LoginMessage login) throws IOException {
         String username = login.getUsername();
-        clientHandler.setUsername(username);
 
         server.broadcastUserEvent(clientHandler.getUsername(), true);
 
 
-        objectOut.writeObject(new UserListMessage(server.getUserList()));
+        objectOut.writeObject(new UserListMessage(server.getOnlineUsers()));
         objectOut.writeObject(new MessageHistoryMessage(server.getMessageHistory()));
         objectOut.flush();
     }

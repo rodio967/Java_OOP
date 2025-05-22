@@ -13,18 +13,20 @@ import chat.server.protocol.XmlProtocolHandler;
 
 public class ChatServer {
     private static final int DEFAULT_PORT = 5555;
-    private int port;
+    private final int port;
     private ServerSocket serverSocket;
-    private ExecutorService executorService;
-    private List<ClientHandler> clients;
-    private List<ChatMessage> messageHistory;
+    private final ExecutorService executorService;
+    private final List<ClientHandler> clients;
+    private final List<ChatMessage> messageHistory;
+    private final Set<String> onlineUsers = ConcurrentHashMap.newKeySet();
     private boolean running;
+
 
     public ChatServer(int port) {
         this.port = port;
         this.executorService = Executors.newCachedThreadPool();
         this.clients = new CopyOnWriteArrayList<>();
-        this.messageHistory = new ArrayList<>();
+        this.messageHistory = new CopyOnWriteArrayList<>();
     }
 
     public void start() {
@@ -49,6 +51,8 @@ public class ChatServer {
             while (running) {
                 Socket clientSocket = serverSocket.accept();
                 ClientHandler clientHandler = new ClientHandler(clientSocket, this);
+
+
                 clients.add(clientHandler);
                 executorService.execute(clientHandler);
             }
@@ -93,20 +97,16 @@ public class ChatServer {
 
     public void removeClient(ClientHandler client) {
         clients.remove(client);
+
         if (client.getUsername() != null) {
             broadcastUserEvent(client.getUsername(), false);
             log("User " + client.getUsername() + " disconnected");
         }
     }
 
-    public List<String> getUserList() {
-        List<String> userList = new ArrayList<>();
-        for (ClientHandler client : clients) {
-            if (client.getUsername() != null) {
-                userList.add(client.getUsername());
-            }
-        }
-        return userList;
+
+    public Set<String> getOnlineUsers() {
+        return onlineUsers;
     }
 
     public List<ChatMessage> getMessageHistory() {
@@ -157,18 +157,23 @@ public class ChatServer {
         @Override
         public void run() {
             try {
-                String protocol = objectIn.readUTF();
-                useXml = "XML".equals(protocol);
-                log("Client connected using protocol: " + protocol);
+                String UserName = objectIn.readUTF();
 
-                if (useXml) {
-                    xmlHandler.handleXmlCommunication();
-                } else {
-                    objectHandler.HandleObjectCommunication();
+                if (checkUsername(UserName)) {
+                    log("Duplicate username: " + UserName);
+                    return;
                 }
+
+                username = UserName;
+                onlineUsers.add(UserName);
+
+                defineProtocol();
             } catch (IOException e) {
                 log("Client connection error: " + e.getMessage());
             } finally {
+                if (username != null) {
+                    onlineUsers.remove(username);
+                }
                 server.removeClient(this);
                 closeResources();
             }
@@ -180,6 +185,27 @@ public class ChatServer {
 
         public String getUsername() {
             return username;
+        }
+
+        public boolean checkUsername(String UserName) throws IOException {
+            boolean nameAvailable = onlineUsers.contains(UserName);
+
+            objectOut.writeBoolean(nameAvailable);
+            objectOut.flush();
+
+            return nameAvailable;
+        }
+
+        public void defineProtocol() throws IOException {
+            String protocol = objectIn.readUTF();
+            useXml = "XML".equals(protocol);
+            log("Client connected using protocol: " + protocol);
+
+            if (useXml) {
+                xmlHandler.handleXmlCommunication();
+            } else {
+                objectHandler.HandleObjectCommunication();
+            }
         }
 
 
@@ -221,4 +247,3 @@ public class ChatServer {
         }
     }
 }
-

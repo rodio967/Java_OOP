@@ -62,7 +62,6 @@ public class XmlProtocolHandler extends XmlProtocol {
 
             String username = nameNodes.item(0).getTextContent();
 
-            client.setUsername(username);
             log("User " + username + " connected (XML)");
 
             server.broadcastUserEvent(client.getUsername(), true);
@@ -119,7 +118,7 @@ public class XmlProtocolHandler extends XmlProtocol {
         StringBuilder xmlBuilder = new StringBuilder();
         xmlBuilder.append("<event name=\"userlist\">");
 
-        for (String user : server.getUserList()) {
+        for (String user : server.getOnlineUsers()) {
             xmlBuilder.append("<user>").append(user).append("</user>");
         }
 

@@ -5,7 +5,6 @@ import java.awt.*;
 import java.io.*;
 import java.net.*;
 import java.util.*;
-import java.util.List;
 import javax.xml.parsers.*;
 
 import chat.client.protocol.ObjectClient;
@@ -72,7 +71,7 @@ public class ChatClient extends JFrame {
         JPanel messagePanel = new JPanel(new BorderLayout());
         messageListModel = new DefaultListModel<>();
         JList<String> messageList = new JList<>(messageListModel);
-        messageList.setCellRenderer(new MessageCellRenderer());
+
         messageArea = new JTextArea();
         messageArea.setEditable(false);
         JScrollPane messageScroll = new JScrollPane(messageList);
@@ -114,15 +113,17 @@ public class ChatClient extends JFrame {
                 return;
             }
 
+
             try {
-                connectToServer();
-                usernameField.setEnabled(false);
-                serverField.setEnabled(false);
-                portField.setEnabled(false);
-                protocolCombo.setEnabled(false);
-                connectButton.setEnabled(false);
-                inputField.setEnabled(true);
-                sendButton.setEnabled(true);
+                if (connectToServer()) {
+                    usernameField.setEnabled(false);
+                    serverField.setEnabled(false);
+                    portField.setEnabled(false);
+                    protocolCombo.setEnabled(false);
+                    connectButton.setEnabled(false);
+                    inputField.setEnabled(true);
+                    sendButton.setEnabled(true);
+                }
             } catch (IOException ex) {
                 JOptionPane.showMessageDialog(this, "Connection error: " + ex.getMessage(),
                         "Error", JOptionPane.ERROR_MESSAGE);
@@ -132,7 +133,8 @@ public class ChatClient extends JFrame {
         });
     }
 
-    private void connectToServer() throws IOException, InterruptedException {
+
+    private boolean connectToServer() throws IOException, InterruptedException {
         socket = new Socket(serverAddress, serverPort);
         objectOut = new ObjectOutputStream(socket.getOutputStream());
         objectIn = new ObjectInputStream(socket.getInputStream());
@@ -143,6 +145,28 @@ public class ChatClient extends JFrame {
         objectClient = new ObjectClient(objectIn, objectOut, this);
 
 
+        if (checkUsername()) {
+            JOptionPane.showMessageDialog(this, "Имя " + username + " занято, выберите другое",
+                    "Error", JOptionPane.ERROR_MESSAGE);
+            closeResources();
+            return false;
+        }
+
+        defineProtocol();
+
+        startReceiveThread();
+
+        return true;
+    }
+
+    private boolean checkUsername() throws IOException {
+        objectOut.writeUTF(username);
+        objectOut.flush();
+
+        return objectIn.readBoolean();
+    }
+
+    private void defineProtocol() throws IOException {
         if (useXml) {
             objectOut.writeUTF("XML");
             objectOut.flush();
@@ -153,10 +177,10 @@ public class ChatClient extends JFrame {
             objectOut.flush();
 
             objectClient.performObjectLogin();
-
         }
+    }
 
-
+    private void startReceiveThread() {
         new Thread(this::receiveMessages).start();
     }
 
@@ -168,16 +192,15 @@ public class ChatClient extends JFrame {
         try {
             if (useXml) {
                 xmlClient.sendMessage(text);
-
             } else {
                 objectClient.sendMessage(text);
             }
 
             inputField.setText("");
 
-        } catch (IOException e) {
+        } catch (IOException ex) {
             JOptionPane.showMessageDialog(this,
-                    "Ошибка отправки: " + e.getMessage(),
+                    "Ошибка отправки: " + ex.getMessage(),
                     "Ошибка", JOptionPane.ERROR_MESSAGE);
         }
     }
@@ -192,9 +215,9 @@ public class ChatClient extends JFrame {
                     objectClient.receiveMessages();
                 }
             }
-        } catch (IOException | ClassNotFoundException | ParserConfigurationException | SAXException e) {
+        } catch (IOException | ClassNotFoundException | ParserConfigurationException | SAXException ex) {
             SwingUtilities.invokeLater(() -> {
-                JOptionPane.showMessageDialog(this, "Connection lost: " + e.getMessage(),
+                JOptionPane.showMessageDialog(this, "Connection lost: " + ex.getMessage(),
                         "Error", JOptionPane.ERROR_MESSAGE);
                 System.exit(0);
             });
@@ -208,7 +231,7 @@ public class ChatClient extends JFrame {
         });
     }
 
-    public void updateUserList(List<String> users) {
+    public void updateUserListObject(Set<String> users) {
         SwingUtilities.invokeLater(() -> {
             userListModel.clear();
             for (String user : users) {
@@ -220,16 +243,14 @@ public class ChatClient extends JFrame {
     public void updateUserList(String user, boolean add) {
         SwingUtilities.invokeLater(() -> {
             if (add) {
-                if (!userListModel.contains(user)) {
-                    userListModel.addElement(user);
-                }
+                userListModel.addElement(user);
             } else {
                 userListModel.removeElement(user);
             }
         });
     }
 
-    public void updateUserListFromXml(Element root) {
+    public void updateUserListXml(Element root) {
         NodeList userNodes = root.getElementsByTagName("user");
         SwingUtilities.invokeLater(() -> {
             userListModel.clear();
@@ -242,25 +263,6 @@ public class ChatClient extends JFrame {
         });
     }
 
-
-
-    private class MessageCellRenderer extends DefaultListCellRenderer {
-        @Override
-        public Component getListCellRendererComponent(JList<?> list, Object value, int index,
-                                                      boolean isSelected, boolean cellHasFocus) {
-            JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-
-            String text = (String) value;
-            if (text.contains(username + ":")) {
-                label.setForeground(Color.BLUE);
-            } else if (text.contains("has joined") || text.contains("has left")) {
-                label.setForeground(Color.GRAY);
-                label.setFont(label.getFont().deriveFont(Font.ITALIC));
-            }
-
-            return label;
-        }
-    }
 
     private void closeResources() {
         try {

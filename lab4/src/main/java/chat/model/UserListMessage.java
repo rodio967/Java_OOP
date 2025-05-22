@@ -1,18 +1,18 @@
 package chat.model;
 
 import java.io.Serial;
-import java.util.List;
+import java.util.Set;
 
 public class UserListMessage extends Message {
     @Serial
     private static final long serialVersionUID = 1L;
-    private final List<String> users;
+    private final Set<String> onlineUsers;
 
-    public UserListMessage(List<String> users) {
-        this.users = users;
+    public UserListMessage(Set<String> onlineUsers) {
+        this.onlineUsers = onlineUsers;
     }
 
-    public List<String> getUsers() {
-        return users;
+    public Set<String> getUsers() {
+        return onlineUsers;
     }
 }
