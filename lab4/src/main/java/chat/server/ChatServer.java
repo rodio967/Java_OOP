@@ -7,17 +7,19 @@ import java.net.*;
 import java.util.*;
 import java.util.concurrent.*;
 
-import chat.model.ChatMessage;
-import chat.server.protocol.ObjectProtocolHandler;
-import chat.server.protocol.XmlProtocolHandler;
+import chat.Config;
+import chat.model.Message;
+import chat.server.protocol.ServerHandler;
+import chat.server.protocol.ObjectHandler;
+import chat.server.protocol.XmlHandler;
 
 public class ChatServer {
-    private static final int DEFAULT_PORT = 5555;
     private final int port;
+    private final int limitMessages = 100;
     private ServerSocket serverSocket;
     private final ExecutorService executorService;
     private final List<ClientHandler> clients;
-    private final List<ChatMessage> messageHistory;
+    private final List<Message> messageHistory;
     private final Set<String> onlineUsers = ConcurrentHashMap.newKeySet();
     private boolean running;
 
@@ -76,9 +78,9 @@ public class ChatServer {
         log("Server stopped");
     }
 
-    public void broadcastMessage(ChatMessage message, ClientHandler excludeClient) {
+    public void broadcastMessage(Message message, ClientHandler excludeClient) {
         messageHistory.add(message);
-        if (messageHistory.size() > 100) {
+        if (messageHistory.size() > limitMessages) {
             messageHistory.remove(0);
         }
 
@@ -106,10 +108,10 @@ public class ChatServer {
 
 
     public Set<String> getOnlineUsers() {
-        return onlineUsers;
+        return new HashSet<>(onlineUsers);
     }
 
-    public List<ChatMessage> getMessageHistory() {
+    public List<Message> getMessageHistory() {
         return new ArrayList<>(messageHistory);
     }
 
@@ -118,7 +120,8 @@ public class ChatServer {
     }
 
     public static void main(String[] args) {
-        int port = args.length > 0 ? Integer.parseInt(args[0]) : DEFAULT_PORT;
+        int port = Config.getServerPort();
+
         ChatServer server = new ChatServer(port);
         server.start();
     }
@@ -126,48 +129,46 @@ public class ChatServer {
     public class ClientHandler implements Runnable {
         private final Socket socket;
         private final ChatServer server;
-        private ObjectInputStream objectIn;
-        private ObjectOutputStream objectOut;
-        private DataInputStream dataIn;
-        private DataOutputStream dataOut;
         private String username;
-        private boolean useXml;
-
-        public XmlProtocolHandler xmlHandler;
-        public ObjectProtocolHandler objectHandler;
+        private ServerHandler handler;
 
         public ClientHandler(Socket socket, ChatServer server) {
-
             this.socket = socket;
             this.server = server;
+
             try {
-                this.objectOut = new ObjectOutputStream(socket.getOutputStream());
-                this.objectIn = new ObjectInputStream(socket.getInputStream());
-                this.dataOut = new DataOutputStream(socket.getOutputStream());
-                this.dataIn = new DataInputStream(socket.getInputStream());
+                Config.ProtocolType protocolType = Config.getProtocolType();
 
-                this.xmlHandler = new XmlProtocolHandler(dataIn, dataOut, server, this);
-                this.objectHandler = new ObjectProtocolHandler(objectIn, objectOut, server, this);
-
+                switch (protocolType) {
+                    case XML:
+                        handler = new XmlHandler(socket, server, this);
+                        break;
+                    case OBJECT:
+                        handler = new ObjectHandler(socket, server, this);
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unknown protocol type");
+                }
             } catch (IOException e) {
                 log("Error creating client handler: " + e.getMessage());
             }
+
         }
 
         @Override
         public void run() {
             try {
-                String UserName = objectIn.readUTF();
+                String Username = handler.readUsername();
 
-                if (checkUsername(UserName)) {
-                    log("Duplicate username: " + UserName);
+                if (handler.checkUsername(onlineUsers, Username)) {
+                    log("Duplicate username: " + Username);
                     return;
                 }
 
-                username = UserName;
-                onlineUsers.add(UserName);
+                username = Username;
+                onlineUsers.add(Username);
 
-                defineProtocol();
+                handler.Communication();
             } catch (IOException e) {
                 log("Client connection error: " + e.getMessage());
             } finally {
@@ -187,35 +188,10 @@ public class ChatServer {
             return username;
         }
 
-        public boolean checkUsername(String UserName) throws IOException {
-            boolean nameAvailable = onlineUsers.contains(UserName);
 
-            objectOut.writeBoolean(nameAvailable);
-            objectOut.flush();
-
-            return nameAvailable;
-        }
-
-        public void defineProtocol() throws IOException {
-            String protocol = objectIn.readUTF();
-            useXml = "XML".equals(protocol);
-            log("Client connected using protocol: " + protocol);
-
-            if (useXml) {
-                xmlHandler.handleXmlCommunication();
-            } else {
-                objectHandler.HandleObjectCommunication();
-            }
-        }
-
-
-        public void sendMessage(ChatMessage message) {
+        public void sendMessage(Message message) {
             try {
-                if (useXml) {
-                    xmlHandler.sendMessage(message);
-                } else {
-                    objectHandler.sendMessage(message);
-                }
+                handler.sendMessage(message);
             } catch (IOException e) {
                 log("Error sending message to " + username + ": " + e.getMessage());
             }
@@ -223,26 +199,27 @@ public class ChatServer {
 
         public void sendUserEvent(String username, boolean isLogin) {
             try {
-                if (useXml) {
-                    xmlHandler.sendUserEvent(username, isLogin);
-                } else {
-                    objectHandler.sendUserEvent(username, isLogin);
-                }
+                handler.sendUserEvent(username, isLogin);
             } catch (IOException e) {
-                log("Error sending user event to " + this.username + ": " + e.getMessage());
+                log("Error sending user_event to " + this.username + ": " + e.getMessage());
             }
         }
 
 
         private void closeResources() {
             try {
-                if (objectIn != null) objectIn.close();
-                if (objectOut != null) objectOut.close();
-                if (dataIn != null) dataIn.close();
-                if (dataOut != null) dataOut.close();
-                if (socket != null) socket.close();
+                handler.closeResources();
             } catch (IOException e) {
-                log("Error closing resources: " + e.getMessage());
+                log("Error closing Server resources: " + e.getMessage());
+            }
+
+
+            if (socket != null) {
+                try {
+                    socket.close();
+                } catch (IOException e) {
+                    log("Error closing Server socket: " + e.getMessage());
+                }
             }
         }
     }

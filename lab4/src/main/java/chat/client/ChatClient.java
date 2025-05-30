@@ -7,25 +7,18 @@ import java.net.*;
 import java.util.*;
 import javax.xml.parsers.*;
 
-import chat.client.protocol.ObjectClient;
-import chat.client.protocol.XmlClient;
+import chat.Config;
+import chat.client.protocol.*;
 import org.w3c.dom.*;
 import org.xml.sax.SAXException;
 
 public class ChatClient extends JFrame {
+    private final int limitMessages = 100;
     private String username;
     private String serverAddress;
     private int serverPort;
-    private boolean useXml;
-
     private Socket socket;
-    private ObjectInputStream objectIn;
-    private ObjectOutputStream objectOut;
-    private DataInputStream dataIn;
-    private DataOutputStream dataOut;
-
-    private XmlClient xmlClient;
-    private ObjectClient objectClient;
+    private ClientHandler handler;
 
     private final DefaultListModel<String> userListModel;
     private final DefaultListModel<String> messageListModel;
@@ -33,7 +26,6 @@ public class ChatClient extends JFrame {
     private final JTextArea messageArea;
     private final JTextField inputField;
     private final JList<String> userList;
-    private final JComboBox<String> protocolCombo;
 
     public String getUsername() {
         return username;
@@ -48,9 +40,8 @@ public class ChatClient extends JFrame {
 
         JPanel connectPanel = new JPanel(new FlowLayout());
         JTextField usernameField = new JTextField(10);
-        JTextField serverField = new JTextField("localhost", 10);
-        JTextField portField = new JTextField("5555", 5);
-        protocolCombo = new JComboBox<>(new String[]{"Java Serialization", "XML"});
+        JTextField serverField = new JTextField(Config.getServerIp(), 10);
+        JTextField portField = new JTextField(Integer.toString(Config.getServerPort()), 5);
         JButton connectButton = new JButton("Connect");
 
         connectPanel.add(new JLabel("Username:"));
@@ -59,8 +50,10 @@ public class ChatClient extends JFrame {
         connectPanel.add(serverField);
         connectPanel.add(new JLabel("Port:"));
         connectPanel.add(portField);
-        connectPanel.add(protocolCombo);
         connectPanel.add(connectButton);
+
+        portField.setEnabled(false);
+        serverField.setEnabled(false);
 
         add(connectPanel, BorderLayout.NORTH);
 
@@ -94,7 +87,6 @@ public class ChatClient extends JFrame {
         userListModel = new DefaultListModel<>();
         userList = new JList<>(userListModel);
         JScrollPane userScroll = new JScrollPane(userList);
-        userPanel.add(new JLabel("Online Users"), BorderLayout.NORTH);
         userPanel.add(userScroll, BorderLayout.CENTER);
 
         chatPanel.add(messagePanel);
@@ -104,9 +96,8 @@ public class ChatClient extends JFrame {
 
         connectButton.addActionListener(e -> {
             username = usernameField.getText().trim();
-            serverAddress = serverField.getText().trim();
-            serverPort = Integer.parseInt(portField.getText().trim());
-            useXml = protocolCombo.getSelectedIndex() == 1;
+            serverAddress = Config.getServerIp();
+            serverPort = Config.getServerPort();
 
             if (username.isEmpty()) {
                 JOptionPane.showMessageDialog(this, "Please enter a username", "Error", JOptionPane.ERROR_MESSAGE);
@@ -118,8 +109,6 @@ public class ChatClient extends JFrame {
                 if (connectToServer()) {
                     usernameField.setEnabled(false);
                     serverField.setEnabled(false);
-                    portField.setEnabled(false);
-                    protocolCombo.setEnabled(false);
                     connectButton.setEnabled(false);
                     inputField.setEnabled(true);
                     sendButton.setEnabled(true);
@@ -136,49 +125,32 @@ public class ChatClient extends JFrame {
 
     private boolean connectToServer() throws IOException, InterruptedException {
         socket = new Socket(serverAddress, serverPort);
-        objectOut = new ObjectOutputStream(socket.getOutputStream());
-        objectIn = new ObjectInputStream(socket.getInputStream());
-        dataOut = new DataOutputStream(socket.getOutputStream());
-        dataIn = new DataInputStream(socket.getInputStream());
+        Config.ProtocolType protocolType = Config.getProtocolType();
 
-        xmlClient = new XmlClient(dataIn, dataOut, this);
-        objectClient = new ObjectClient(objectIn, objectOut, this);
+        switch (protocolType) {
+            case XML:
+                handler = new XmlHandler(socket, this);
+                break;
+            case OBJECT:
+                handler = new ObjectHandler(socket, this);
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown protocol type");
+        }
 
-
-        if (checkUsername()) {
+        if (handler.checkUsername(username)) {
             JOptionPane.showMessageDialog(this, "Имя " + username + " занято, выберите другое",
                     "Error", JOptionPane.ERROR_MESSAGE);
             closeResources();
             return false;
         }
 
-        defineProtocol();
+        handler.performLogin();
 
         startReceiveThread();
-
         return true;
     }
 
-    private boolean checkUsername() throws IOException {
-        objectOut.writeUTF(username);
-        objectOut.flush();
-
-        return objectIn.readBoolean();
-    }
-
-    private void defineProtocol() throws IOException {
-        if (useXml) {
-            objectOut.writeUTF("XML");
-            objectOut.flush();
-
-            xmlClient.performXmlLogin();
-        } else {
-            objectOut.writeUTF("OBJECT");
-            objectOut.flush();
-
-            objectClient.performObjectLogin();
-        }
-    }
 
     private void startReceiveThread() {
         new Thread(this::receiveMessages).start();
@@ -190,14 +162,9 @@ public class ChatClient extends JFrame {
         if (text.isEmpty()) return;
 
         try {
-            if (useXml) {
-                xmlClient.sendMessage(text);
-            } else {
-                objectClient.sendMessage(text);
-            }
+            handler.sendMessage(text);
 
             inputField.setText("");
-
         } catch (IOException ex) {
             JOptionPane.showMessageDialog(this,
                     "Ошибка отправки: " + ex.getMessage(),
@@ -208,12 +175,7 @@ public class ChatClient extends JFrame {
     private void receiveMessages() {
         try {
             while (true) {
-                if (useXml) {
-                    xmlClient.receiveMessages();
-
-                } else {
-                    objectClient.receiveMessages();
-                }
+                handler.receiveMessages();
             }
         } catch (IOException | ClassNotFoundException | ParserConfigurationException | SAXException ex) {
             SwingUtilities.invokeLater(() -> {
@@ -227,6 +189,11 @@ public class ChatClient extends JFrame {
     public void addMessage(String sender, String message) {
         SwingUtilities.invokeLater(() -> {
             String formattedMessage = "[" + new Date() + "] " + sender + ": " + message;
+
+            if (messageListModel.getSize() >= limitMessages) {
+                messageListModel.remove(0);
+            }
+
             messageListModel.addElement(formattedMessage);
         });
     }
@@ -265,24 +232,26 @@ public class ChatClient extends JFrame {
 
 
     private void closeResources() {
+        System.out.println("Close Client");
+
         try {
-            if (objectIn != null) objectIn.close();
-            if (objectOut != null) objectOut.close();
-            if (dataIn != null) dataIn.close();
-            if (dataOut != null) dataOut.close();
-            if (socket != null) socket.close();
+            handler.closeResources();
         } catch (IOException e) {
-            System.out.println("Error closing resources: " + e.getMessage());
+            System.out.println("Error closing Client resources: " + e.getMessage());
+        }
+
+
+        if (socket != null) {
+            try {
+                socket.close();
+            } catch (IOException e) {
+                System.out.println("Error closing Client socket: " + e.getMessage());
+            }
         }
     }
 
     private void sendLogOutMessage() throws IOException {
-        if (useXml) {
-            xmlClient.sendLogoutMessage();
-
-        } else {
-            objectClient.sendLogOutMessage();
-        }
+        handler.sendLogoutMessage();
     }
 
     public boolean isConnected() {
