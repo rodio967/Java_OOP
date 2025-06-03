@@ -6,6 +6,7 @@ import java.io.*;
 import java.net.*;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.logging.Logger;
 
 import chat.Config;
 import chat.model.Message;
@@ -14,6 +15,7 @@ import chat.server.protocol.ObjectHandler;
 import chat.server.protocol.XmlHandler;
 
 public class ChatServer {
+    private final Logger logger = Logger.getLogger(ChatServer.class.getName());
     private final int port;
     private final int limitMessages = 100;
     private ServerSocket serverSocket;
@@ -21,7 +23,7 @@ public class ChatServer {
     private final List<ClientHandler> clients;
     private final List<Message> messageHistory;
     private final Set<String> onlineUsers = ConcurrentHashMap.newKeySet();
-    private boolean running;
+    private volatile boolean running;
 
 
     public ChatServer(int port) {
@@ -48,7 +50,7 @@ public class ChatServer {
 
         try {
             serverSocket = new ServerSocket(port);
-            log("Server started on port " + port);
+            logger.info("Server started on port " + port);
 
             while (running) {
                 Socket clientSocket = serverSocket.accept();
@@ -60,7 +62,7 @@ public class ChatServer {
             }
         } catch (IOException e) {
             if (running) {
-                log("Server error: " + e.getMessage());
+                logger.severe("Server error: " + e.getMessage());
             }
         }
     }
@@ -72,10 +74,10 @@ public class ChatServer {
                 serverSocket.close();
             }
         } catch (IOException e) {
-            log("Error closing server: " + e.getMessage());
+            logger.severe("Error closing server: " + e.getMessage());
         }
         executorService.shutdownNow();
-        log("Server stopped");
+        logger.info("Server stopped");
     }
 
     public void broadcastMessage(Message message, ClientHandler excludeClient) {
@@ -102,7 +104,7 @@ public class ChatServer {
 
         if (client.getUsername() != null) {
             broadcastUserEvent(client.getUsername(), false);
-            log("User " + client.getUsername() + " disconnected");
+            logger.info("User " + client.getUsername() + " disconnected");
         }
     }
 
@@ -115,9 +117,6 @@ public class ChatServer {
         return new ArrayList<>(messageHistory);
     }
 
-    private void log(String message) {
-        System.out.println("[SERVER LOG] " + new Date() + ": " + message);
-    }
 
     public static void main(String[] args) {
         int port = Config.getServerPort();
@@ -150,7 +149,7 @@ public class ChatServer {
                         throw new IllegalArgumentException("Unknown protocol type");
                 }
             } catch (IOException e) {
-                log("Error creating client handler: " + e.getMessage());
+                logger.severe("Error creating client handler: " + e.getMessage());
             }
 
         }
@@ -161,7 +160,7 @@ public class ChatServer {
                 String Username = handler.readUsername();
 
                 if (handler.checkUsername(onlineUsers, Username)) {
-                    log("Duplicate username: " + Username);
+                    logger.severe("Duplicate username: " + Username);
                     return;
                 }
 
@@ -170,7 +169,7 @@ public class ChatServer {
 
                 handler.Communication();
             } catch (IOException e) {
-                log("Client connection error: " + e.getMessage());
+                logger.severe("Client connection error: " + e.getMessage());
             } finally {
                 if (username != null) {
                     onlineUsers.remove(username);
@@ -193,7 +192,7 @@ public class ChatServer {
             try {
                 handler.sendMessage(message);
             } catch (IOException e) {
-                log("Error sending message to " + username + ": " + e.getMessage());
+                logger.severe("Error sending message to " + username + ": " + e.getMessage());
             }
         }
 
@@ -201,7 +200,7 @@ public class ChatServer {
             try {
                 handler.sendUserEvent(username, isLogin);
             } catch (IOException e) {
-                log("Error sending user_event to " + this.username + ": " + e.getMessage());
+                logger.severe("Error sending user_event to " + this.username + ": " + e.getMessage());
             }
         }
 
@@ -210,7 +209,7 @@ public class ChatServer {
             try {
                 handler.closeResources();
             } catch (IOException e) {
-                log("Error closing Server resources: " + e.getMessage());
+                logger.severe("Error closing Server resources: " + e.getMessage());
             }
 
 
@@ -218,7 +217,7 @@ public class ChatServer {
                 try {
                     socket.close();
                 } catch (IOException e) {
-                    log("Error closing Server socket: " + e.getMessage());
+                    logger.severe("Error closing Server socket: " + e.getMessage());
                 }
             }
         }

@@ -5,14 +5,17 @@ import java.awt.*;
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.util.logging.Logger;
 import javax.xml.parsers.*;
 
 import chat.Config;
 import chat.client.protocol.*;
+import chat.server.ChatServer;
 import org.w3c.dom.*;
 import org.xml.sax.SAXException;
 
 public class ChatClient extends JFrame {
+    private final Logger logger = Logger.getLogger(ChatServer.class.getName());
     private final int limitMessages = 100;
     private String username;
     private String serverAddress;
@@ -232,12 +235,12 @@ public class ChatClient extends JFrame {
 
 
     private void closeResources() {
-        System.out.println("Close Client");
+        logger.info("Close Client");
 
         try {
             handler.closeResources();
         } catch (IOException e) {
-            System.out.println("Error closing Client resources: " + e.getMessage());
+            logger.severe("Error closing Client resources: " + e.getMessage());
         }
 
 
@@ -245,7 +248,7 @@ public class ChatClient extends JFrame {
             try {
                 socket.close();
             } catch (IOException e) {
-                System.out.println("Error closing Client socket: " + e.getMessage());
+                logger.severe("Error closing Client socket: " + e.getMessage());
             }
         }
     }

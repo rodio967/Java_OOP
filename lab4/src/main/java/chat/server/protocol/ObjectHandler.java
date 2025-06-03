@@ -1,5 +1,6 @@
 package chat.server.protocol;
 
+
 import chat.model.*;
 import chat.server.ChatServer;
 
@@ -7,10 +8,11 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
-import java.util.Date;
 import java.util.Set;
+import java.util.logging.Logger;
 
 public class ObjectHandler implements ServerHandler {
+    private final Logger logger = Logger.getLogger(ObjectHandler.class.getName());
     private final ObjectOutputStream objectOut;
     private final ObjectInputStream objectIn;
     private final ChatServer server;
@@ -26,6 +28,8 @@ public class ObjectHandler implements ServerHandler {
     public void sendLoginMessage(Message login) throws IOException {
         String username = login.getUsername();
 
+        logger.info("User " + username + " connected (OBJECT)");
+
         server.broadcastUserEvent(clientHandler.getUsername(), true);
 
         Message userList = new Message(MessageType.USER_LIST);
@@ -39,10 +43,6 @@ public class ObjectHandler implements ServerHandler {
         objectOut.flush();
     }
 
-
-    private void log(String message) {
-        System.out.println("[SERVER LOG] " + new Date() + ": " + message);
-    }
 
 
     @Override
@@ -60,7 +60,7 @@ public class ObjectHandler implements ServerHandler {
                     }
                 }
             } catch (ClassNotFoundException e) {
-                log("Serialize parsing error: " + e.getMessage());
+                logger.severe("Serialize parsing error: " + e.getMessage());
             }
 
         }

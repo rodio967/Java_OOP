@@ -7,8 +7,10 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.util.logging.Logger;
 
 public class ObjectHandler implements ClientHandler {
+    private final Logger logger = Logger.getLogger(ObjectHandler.class.getName());
     private final ObjectOutputStream objectOut;
     private final ObjectInputStream objectIn;
     private final ChatClient client;
@@ -73,7 +75,7 @@ public class ObjectHandler implements ClientHandler {
             try {
                 objectIn.close();
             } catch (IOException e) {
-                System.out.println("Error closing Client objectIn: " + e.getMessage());
+                logger.severe("Error closing Client objectIn: " + e.getMessage());
             }
         }
 
@@ -82,7 +84,7 @@ public class ObjectHandler implements ClientHandler {
             try {
                 objectOut.close();
             }catch (IOException e) {
-                System.out.println("Error closing Client objectOut: " + e.getMessage());
+                logger.severe("Error closing Client objectOut: " + e.getMessage());
             }
         }
     }

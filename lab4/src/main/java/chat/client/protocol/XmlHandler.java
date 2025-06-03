@@ -16,8 +16,10 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.logging.Logger;
 
 public class XmlHandler implements ClientHandler {
+    private final Logger logger = Logger.getLogger(XmlHandler.class.getName());
     private final DataOutputStream dataOut;
     private final DataInputStream dataIn;
     private final ChatClient client;
@@ -164,7 +166,7 @@ public class XmlHandler implements ClientHandler {
             try {
                 dataIn.close();
             }catch (IOException e) {
-                System.out.println("Error closing Client dataIn: " + e.getMessage());
+                logger.severe("Error closing Client dataIn: " + e.getMessage());
             }
         }
 
@@ -172,7 +174,7 @@ public class XmlHandler implements ClientHandler {
             try {
                 dataOut.close();
             } catch (IOException e) {
-                System.out.println("Error closing Client dataOut: " + e.getMessage());
+                logger.severe("Error closing Client dataOut: " + e.getMessage());
             }
         }
     }

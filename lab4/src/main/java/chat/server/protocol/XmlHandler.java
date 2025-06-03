@@ -18,12 +18,13 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.logging.Logger;
 
 public class XmlHandler implements ServerHandler {
+    private final Logger logger = Logger.getLogger(XmlHandler.class.getName());
     private static final int Page_Size = 50;
     private final DataOutputStream dataOut;
     private final DataInputStream dataIn;
@@ -90,7 +91,7 @@ public class XmlHandler implements ServerHandler {
                 }
             }
         } catch (ParserConfigurationException | SAXException e) {
-            log("XML parsing error: " + e.getMessage());
+            logger.severe("XML parsing error: " + e.getMessage());
         }
     }
 
@@ -157,7 +158,7 @@ public class XmlHandler implements ServerHandler {
             sendXmlResponse(successResponse);
 
             String username = nameNodes.item(0).getTextContent();
-            log("User " + username + " connected (XML)");
+            logger.info("User " + username + " connected (XML)");
 
             server.broadcastUserEvent(client.getUsername(), true);
 
@@ -232,9 +233,5 @@ public class XmlHandler implements ServerHandler {
         System.out.println("Sending userlist: " + xmlBuilder.toString());
         sendXmlResponse(xmlBuilder.toString());
 
-    }
-
-    private void log(String message) {
-        System.out.println("[SERVER LOG] " + new Date() + ": " + message);
     }
 }
