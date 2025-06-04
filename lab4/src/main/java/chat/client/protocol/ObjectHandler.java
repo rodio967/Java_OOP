@@ -54,18 +54,18 @@ public class ObjectHandler implements ClientHandler {
     }
 
     @Override
-    public void performLogin() throws IOException {
+    public boolean performLogin() throws IOException {
         Message LoginMessage = new Message(MessageType.LOGIN);
         LoginMessage.setUsername(client.getUsername());
+
         objectOut.writeObject(LoginMessage);
         objectOut.flush();
+
+        return checkUsername();
     }
 
-    @Override
-    public boolean checkUsername(String username) throws IOException {
-        objectOut.writeUTF(username);
-        objectOut.flush();
 
+    public boolean checkUsername() throws IOException {
         return objectIn.readBoolean();
     }
 

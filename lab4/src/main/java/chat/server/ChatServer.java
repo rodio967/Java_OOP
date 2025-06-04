@@ -113,6 +113,10 @@ public class ChatServer {
         return new HashSet<>(onlineUsers);
     }
 
+    public void addClient(String username) {
+        onlineUsers.add(username);
+    }
+
     public List<Message> getMessageHistory() {
         return new ArrayList<>(messageHistory);
     }
@@ -157,16 +161,6 @@ public class ChatServer {
         @Override
         public void run() {
             try {
-                String Username = handler.readUsername();
-
-                if (handler.checkUsername(onlineUsers, Username)) {
-                    logger.severe("Duplicate username: " + Username);
-                    return;
-                }
-
-                username = Username;
-                onlineUsers.add(Username);
-
                 handler.Communication();
             } catch (IOException e) {
                 logger.severe("Client connection error: " + e.getMessage());

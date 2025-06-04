@@ -10,12 +10,11 @@ import javax.xml.parsers.*;
 
 import chat.Config;
 import chat.client.protocol.*;
-import chat.server.ChatServer;
 import org.w3c.dom.*;
 import org.xml.sax.SAXException;
 
 public class ChatClient extends JFrame {
-    private final Logger logger = Logger.getLogger(ChatServer.class.getName());
+    private final Logger logger = Logger.getLogger(ChatClient.class.getName());
     private final int limitMessages = 100;
     private String username;
     private String serverAddress;
@@ -141,14 +140,13 @@ public class ChatClient extends JFrame {
                 throw new IllegalArgumentException("Unknown protocol type");
         }
 
-        if (handler.checkUsername(username)) {
+
+        if (handler.performLogin()) {
             JOptionPane.showMessageDialog(this, "Имя " + username + " занято, выберите другое",
                     "Error", JOptionPane.ERROR_MESSAGE);
             closeResources();
             return false;
         }
-
-        handler.performLogin();
 
         startReceiveThread();
         return true;

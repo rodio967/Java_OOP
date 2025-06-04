@@ -19,8 +19,6 @@ import java.io.StringReader;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Set;
-import java.util.UUID;
 import java.util.logging.Logger;
 
 public class XmlHandler implements ServerHandler {
@@ -81,7 +79,9 @@ public class XmlHandler implements ServerHandler {
                 String commandName = root.getAttribute("name");
 
                 if ("login".equals(commandName)) {
-                    handleXmlLogin(root);
+                    if (handleXmlLogin(root)) {
+                        break;
+                    }
                 } else if ("list".equals(commandName)) {
                     sendXmlUserList();
                 } else if ("message".equals(commandName)) {
@@ -116,20 +116,15 @@ public class XmlHandler implements ServerHandler {
     }
 
 
-    @Override
-    public boolean checkUsername(Set<String> onlineUsers, String username) throws IOException {
-        boolean nameAvailable = onlineUsers.contains(username);
 
+    public boolean checkUsername(String username) throws IOException {
+        boolean nameAvailable = server.getOnlineUsers().contains(username);
         dataOut.writeBoolean(nameAvailable);
         dataOut.flush();
 
         return nameAvailable;
     }
 
-    @Override
-    public String readUsername() throws IOException {
-        return dataIn.readUTF();
-    }
 
     @Override
     public void closeResources() {
@@ -151,14 +146,20 @@ public class XmlHandler implements ServerHandler {
     }
 
 
-    private void handleXmlLogin(Element root) throws IOException {
+    private boolean handleXmlLogin(Element root) throws IOException {
         NodeList nameNodes = root.getElementsByTagName("name");
         if (nameNodes.getLength() > 0) {
-            String successResponse = "<success><session>" + UUID.randomUUID() + "</session></success>";
-            sendXmlResponse(successResponse);
-
             String username = nameNodes.item(0).getTextContent();
+
+            if (checkUsername(username)) {
+                logger.severe("Duplicate username: " + username);
+                return true;
+            }
+
             logger.info("User " + username + " connected (XML)");
+
+            client.setUsername(username);
+            server.addClient(username);
 
             server.broadcastUserEvent(client.getUsername(), true);
 
@@ -168,6 +169,7 @@ public class XmlHandler implements ServerHandler {
             String errorResponse = "<error><message>Invalid login format</message></error>";
             sendXmlResponse(errorResponse);
         }
+        return false;
     }
 
 

@@ -9,8 +9,6 @@ public interface ClientHandler {
     void sendMessage(String text) throws IOException;
     void receiveMessages() throws IOException, ParserConfigurationException, SAXException, ClassNotFoundException;
     void sendLogoutMessage() throws IOException;
-    void performLogin() throws IOException;
-    boolean checkUsername(String username) throws IOException;
+    boolean performLogin() throws IOException;
     void closeResources() throws IOException;
-
 }

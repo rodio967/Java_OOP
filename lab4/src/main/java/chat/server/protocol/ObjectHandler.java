@@ -8,7 +8,6 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
-import java.util.Set;
 import java.util.logging.Logger;
 
 public class ObjectHandler implements ServerHandler {
@@ -25,22 +24,34 @@ public class ObjectHandler implements ServerHandler {
         this.clientHandler = clientHandler;
     }
 
-    public void sendLoginMessage(Message login) throws IOException {
+    public boolean sendLoginMessage(Message login) throws IOException {
         String username = login.getUsername();
 
+        if (checkUsername(username)) {
+            logger.severe("Duplicate username: " + username);
+            return true;
+        }
+
         logger.info("User " + username + " connected (OBJECT)");
+
+        clientHandler.setUsername(username);
+        server.addClient(username);
 
         server.broadcastUserEvent(clientHandler.getUsername(), true);
 
         Message userList = new Message(MessageType.USER_LIST);
         userList.setOnlineUsers(server.getOnlineUsers());
 
+        objectOut.writeObject(userList);
+        objectOut.flush();
+
         Message messageHistory = new Message(MessageType.MESSAGE_HISTORY);
         messageHistory.setHistory(server.getMessageHistory());
 
-        objectOut.writeObject(userList);
         objectOut.writeObject(messageHistory);
         objectOut.flush();
+
+        return false;
     }
 
 
@@ -53,7 +64,11 @@ public class ObjectHandler implements ServerHandler {
                 Message message = (Message)objectIn.readObject();
 
                 switch(message.getType()) {
-                    case LOGIN -> sendLoginMessage(message);
+                    case LOGIN -> {
+                        if (sendLoginMessage(message)) {
+                            break cycle;
+                        }
+                    }
                     case CHAT -> server.broadcastMessage(message, clientHandler);
                     case LOGOUT -> {
                         break cycle;
@@ -82,21 +97,15 @@ public class ObjectHandler implements ServerHandler {
         objectOut.flush();
     }
 
-    @Override
-    public boolean checkUsername(Set<String> onlineUsers, String username) throws IOException {
-        boolean nameAvailable = onlineUsers.contains(username);
 
+    public boolean checkUsername(String username) throws IOException {
+        boolean nameAvailable = server.getOnlineUsers().contains(username);
         objectOut.writeBoolean(nameAvailable);
         objectOut.flush();
 
         return nameAvailable;
-
     }
 
-    @Override
-    public String readUsername() throws IOException {
-        return objectIn.readUTF();
-    }
 
     @Override
     public void closeResources() {

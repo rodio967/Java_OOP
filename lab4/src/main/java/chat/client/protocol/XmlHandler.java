@@ -136,7 +136,7 @@ public class XmlHandler implements ClientHandler {
     }
 
     @Override
-    public void performLogin() throws IOException {
+    public boolean performLogin() throws IOException {
         String xml = String.format(
                 "<command name=\"login\">" +
                         "<name>%s</name>" +
@@ -148,15 +148,11 @@ public class XmlHandler implements ClientHandler {
 
         sendXmlResponse(xml);
 
-        String response = acceptXmlResponse();
-        System.out.println("Server response: " + response);
+        return checkUsername();
     }
 
-    @Override
-    public boolean checkUsername(String username) throws IOException {
-        dataOut.writeUTF(username);
-        dataOut.flush();
 
+    public boolean checkUsername() throws IOException {
         return dataIn.readBoolean();
     }
 
