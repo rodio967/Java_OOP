@@ -236,7 +236,9 @@ public class ChatClient extends JFrame {
         logger.info("Close Client");
 
         try {
-            handler.closeResources();
+            if (handler != null) {
+                handler.closeResources();
+            }
         } catch (IOException e) {
             logger.severe("Error closing Client resources: " + e.getMessage());
         }
